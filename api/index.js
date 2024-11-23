@@ -1,37 +1,45 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const fs = require('fs').promises;
-const path = require('path');
-const requestIP = require('request-ip'); // Tambahkan package ini untuk mendapatkan IP
+const mongoose = require('mongoose');
+const requestIP = require('request-ip');
 
 const app = express();
 const port = 3000;
 const baseUrl = 'shortmyurl.us.kg';
 
+// Koneksi ke MongoDB
+mongoose.connect('mongodb+srv://herza:herza@cluster0.stvrg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'Koneksi database gagal:'));
+db.once('open', () => {
+  console.log('Koneksi database berhasil');
+});
+
+// Schema dan model MongoDB
+const UrlSchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true },
+  web_target: { type: String, required: true },
+  web_url: { type: String, required: true },
+  created_at: { type: Date, default: Date.now },
+  created_by_ip: { type: String },
+  visits: { type: Number, default: 0 },
+  visit_history: [
+    {
+      ip: { type: String },
+      timestamp: { type: Date, default: Date.now },
+    },
+  ],
+});
+const Url = mongoose.model('Url', UrlSchema);
+
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, '../public')));
-app.use(requestIP.mw()); //Middleware untuk mendapatkan IP
-
-// Helper function untuk read database
-async function readDatabase() {
-  try {
-    const data = await fs.readFile('database.json', 'utf8');
-    return JSON.parse(data || '{}');
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      await fs.writeFile('database.json', '{}');
-      return {};
-    }
-    throw error;
-  }
-}
-
-// Helper function untuk write database
-async function writeDatabase(data) {
-  await fs.writeFile('database.json', JSON.stringify(data, null, 2));
-}
+app.use(express.static('public'));
+app.use(requestIP.mw());
 
 // Helper untuk validasi URL
 function isValidUrl(string) {
@@ -43,82 +51,66 @@ function isValidUrl(string) {
   }
 }
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-
 // Route untuk membuat URL pendek
 app.post('/shorten', async (req, res) => {
   try {
     const { url, name } = req.body;
     const clientIP = req.clientIp;
 
-    // Validasi input
     if (!url || !name) {
       return res.status(400).json({
         success: false,
         message: 'URL dan nama tidak boleh kosong!',
-        alertType: 'danger'
+        alertType: 'danger',
       });
     }
 
-    // Validasi format URL
     if (!isValidUrl(url)) {
       return res.status(400).json({
         success: false,
         message: 'Format URL tidak valid!',
-        alertType: 'danger'
+        alertType: 'danger',
       });
     }
 
-    // Validasi format nama (hanya alfanumerik dan dash)
     if (!/^[a-zA-Z0-9-]+$/.test(name)) {
       return res.status(400).json({
         success: false,
         message: 'Nama URL hanya boleh mengandung huruf, angka, dan dash (-)!',
-        alertType: 'danger'
+        alertType: 'danger',
       });
     }
 
-    const db = await readDatabase();
-
-    // Cek apakah nama sudah digunakan
-    if (db[name]) {
+    const existingUrl = await Url.findOne({ name });
+    if (existingUrl) {
       return res.status(400).json({
         success: false,
         message: 'Nama URL pendek sudah digunakan! Silakan pilih nama lain.',
-        alertType: 'danger'
+        alertType: 'danger',
       });
     }
 
-    // Simpan data dengan struktur baru
-    const timestamp = new Date().toISOString();
-    db[name] = {
-      name: name,
+    const newUrl = new Url({
+      name,
       web_target: url,
       web_url: `${baseUrl}/${name}`,
-      created_at: timestamp,
       created_by_ip: clientIP,
-      visits: 0,
-      visit_history: [] // Array untuk menyimpan history kunjungan
-    };
+    });
 
-    await writeDatabase(db);
+    await newUrl.save();
 
     res.json({
       success: true,
       message: 'URL pendek berhasil dibuat!',
       alertType: 'success',
-      data: db[name]
+      data: newUrl,
     });
-
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan server',
-      alertType: 'danger'
+      alertType: 'danger',
     });
   }
 });
@@ -128,34 +120,27 @@ app.get('/:name', async (req, res) => {
   try {
     const { name } = req.params;
     const clientIP = req.clientIp;
-    const db = await readDatabase();
-    const urlData = db[name];
 
+    const urlData = await Url.findOne({ name });
     if (!urlData) {
       return res.status(404).json({
         success: false,
         message: 'URL tidak ditemukan',
-        alertType: 'danger'
+        alertType: 'danger',
       });
     }
 
-    // Update statistik kunjungan
-    const visitTimestamp = new Date().toISOString();
-    db[name].visits += 1;
-    db[name].visit_history.push({
-      ip: clientIP,
-      timestamp: visitTimestamp
-    });
+    urlData.visits += 1;
+    urlData.visit_history.push({ ip: clientIP });
+    await urlData.save();
 
-    await writeDatabase(db);
     res.redirect(urlData.web_target);
-
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan server',
-      alertType: 'danger'
+      alertType: 'danger',
     });
   }
 });
@@ -164,28 +149,26 @@ app.get('/:name', async (req, res) => {
 app.get('/api/stats/:name', async (req, res) => {
   try {
     const { name } = req.params;
-    const db = await readDatabase();
-    const urlData = db[name];
 
+    const urlData = await Url.findOne({ name });
     if (!urlData) {
       return res.status(404).json({
         success: false,
         message: 'URL tidak ditemukan',
-        alertType: 'danger'
+        alertType: 'danger',
       });
     }
 
     res.json({
       success: true,
-      data: urlData
+      data: urlData,
     });
-
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan server',
-      alertType: 'danger'
+      alertType: 'danger',
     });
   }
 });
