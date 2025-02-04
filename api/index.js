@@ -49,7 +49,7 @@ function isValidUrl(string) {
 }
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, '..' 'public', 'index.html'));
 });
 
 app.post('/api/shorten', async (req, res) => {
