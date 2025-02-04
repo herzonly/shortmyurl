@@ -172,9 +172,4 @@ app.get('/api/stats/:name', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server berjalan di http://localhost:${port}`);
-});
-
 module.exports = app
