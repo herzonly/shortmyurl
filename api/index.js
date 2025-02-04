@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const requestIP = require('request-ip');
 const path = require('path');
 const app = express();
-const port = 3000;
+const port = 3500;
 const baseUrl = 'shortmyurl.us.kg';
 
 mongoose.connect('mongodb+srv://herza:herza@cluster0.stvrg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
@@ -52,7 +52,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..' 'public', 'index.html'));
 });
 
-app.post('/api/shorten', async (req, res) => {
+app.post('/shorten', async (req, res) => {
   try {
     const { url, name } = req.body;
     const clientIP = req.clientIp;
