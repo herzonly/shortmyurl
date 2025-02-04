@@ -7,7 +7,6 @@ const app = express();
 const port = 3000;
 const baseUrl = 'shortmyurl.us.kg';
 
-// Koneksi ke MongoDB
 mongoose.connect('mongodb+srv://herza:herza@cluster0.stvrg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -177,3 +176,5 @@ app.get('/api/stats/:name', async (req, res) => {
 app.listen(port, () => {
   console.log(`Server berjalan di http://localhost:${port}`);
 });
+
+module.exports = app
