@@ -50,6 +50,10 @@ function isValidUrl(string) {
   }
 }
 
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../', 'index.html'))
+})
+
 // Route untuk membuat URL pendek
 app.post('/shorten', async (req, res) => {
   try {
