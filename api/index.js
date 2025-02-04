@@ -11,13 +11,13 @@ mongoose.connect('mongodb+srv://herza:herza@cluster0.stvrg.mongodb.net/?retryWri
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
+
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'Koneksi database gagal:'));
 db.once('open', () => {
   console.log('Koneksi database berhasil');
 });
 
-// Schema dan model MongoDB
 const UrlSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
   web_target: { type: String, required: true },
@@ -34,13 +34,11 @@ const UrlSchema = new mongoose.Schema({
 });
 const Url = mongoose.model('Url', UrlSchema);
 
-// Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(requestIP.mw());
 
-// Helper untuk validasi URL
 function isValidUrl(string) {
   try {
     new URL(string);
@@ -51,11 +49,10 @@ function isValidUrl(string) {
 }
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../', 'index.html'))
-})
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-// Route untuk membuat URL pendek
-app.post('/shorten', async (req, res) => {
+app.post('/api/shorten', async (req, res) => {
   try {
     const { url, name } = req.body;
     const clientIP = req.clientIp;
@@ -109,7 +106,6 @@ app.post('/shorten', async (req, res) => {
       data: newUrl,
     });
   } catch (error) {
-    console.error('Error:', error);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan server',
@@ -118,7 +114,6 @@ app.post('/shorten', async (req, res) => {
   }
 });
 
-// Route untuk redirect URL pendek
 app.get('/:name', async (req, res) => {
   try {
     const { name } = req.params;
@@ -139,7 +134,6 @@ app.get('/:name', async (req, res) => {
 
     res.redirect(urlData.web_target);
   } catch (error) {
-    console.error('Error:', error);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan server',
@@ -148,7 +142,6 @@ app.get('/:name', async (req, res) => {
   }
 });
 
-// Route untuk mendapatkan statistik URL
 app.get('/api/stats/:name', async (req, res) => {
   try {
     const { name } = req.params;
@@ -167,7 +160,6 @@ app.get('/api/stats/:name', async (req, res) => {
       data: urlData,
     });
   } catch (error) {
-    console.error('Error:', error);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan server',
@@ -175,6 +167,9 @@ app.get('/api/stats/:name', async (req, res) => {
     });
   }
 });
-app.listen(PORT, () => {
-  console.log(`✅ Server is running on port ${PORT}`)}
-module.exports = app
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+module.exports = app;
